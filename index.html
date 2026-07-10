@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Page-Turner — a scroll-driven book with a genuine kinematic curl</title>
+<meta name="description" content="A library-free, scroll-driven page-turn animation with a real, gradually bending curl. Made by Claude Fable together with Dimitrj Egloff.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     THE PAGE-TURNER
+     Made by Claude Fable and Dimitrj Egloff
+     https://dimitrjegloff.ch
+
+     Adding a page = adding one <article class="page"> inside .book.
+     Scroll length, ribbon and controls adapt automatically.
+     Behaviour knobs (segments, curl, shading, scroll length) live
+     at the top of script.js.
+     ═══════════════════════════════════════════════════════════════ -->
+
+<section class="intro">
+  <span class="mono" style="color:var(--accent-2);">CSS · vanilla JS · no libraries</span>
+  <h1>The Page-Turner</h1>
+  <p>
+    A scroll-driven book with a genuine, kinematic page curl —
+    the pages bend, the type bends with them, and the spine never moves.
+    Scroll to open it. The book explains itself.
+  </p>
+  <span class="scroll-cue mono">↓ scroll</span>
+</section>
+
+<nav class="ribbon" aria-label="Chapters"></nav>
+
+<div class="flipbook-stage">
+  <div class="flipbook-pin">
+    <div class="book">
+      <div class="board" aria-hidden="true"></div>
+
+      <!-- ── Cover ─────────────────────────────────────────────── -->
+      <article class="page" data-ribbon="✳">
+        <div class="page-face cover-face">
+          <div class="cover-frame">
+            <span class="mono">Claude Fable × Dimitrj Egloff — First edition</span>
+            <h2 class="cover-title">The Page-Turner</h2>
+            <p class="cover-sub">
+              Five short chapters on how to fold paper out of mathematics.
+            </p>
+          </div>
+          <span class="margin-note hand">→ keep scrolling, or use the buttons below</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter I ─────────────────────────────────────────── -->
+      <article class="page" data-ribbon="I">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">I</span>
+            <span class="mono">The idea</span>
+          </div>
+          <h3>A curl, not a rotation</h3>
+          <span class="kicker mono">Why this rarely exists</span>
+          <div class="prose">
+            <p>
+              CSS transforms are affine — a plane can turn, but it cannot
+              bend. So this page is not a plane: it is <em>strips
+              hinged into a kinematic chain</em>. Each hinge adds the same
+              small angle, and together they form a circular arc. The top
+              and bottom edges curve, and because every strip carries its
+              own clipped slice of the content, the type bends with the
+              paper.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Look at this page mid-turn: the edges are arcs, not lines — and this very sentence is following the bend.</p>
+          </div>
+          <span class="margin-note hand">a plane can’t bend. so don’t use one.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter II ────────────────────────────────────────── -->
+      <article class="page" data-ribbon="II">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">II</span>
+            <span class="mono">The anchor</span>
+          </div>
+          <h3>The spine never moves</h3>
+          <span class="kicker mono">Every transform is rooted at the binding</span>
+          <div class="prose">
+            <p>
+              The base rotation turns around the spine — and every strip's 
+              transform is anchored there too, so <em>the spine is the 
+                rotation axis itself</em> and stays put to the pixel. 
+                The hinges between the strips exist only as mathematics: 
+                computed positions along the arc, not nested elements.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Anything anchored on the axis cannot drift. Anything scaled by sin(π·g) must land flat. Correctness by geometry, not by choreography.</p>
+          </div>
+          <span class="margin-note hand">the binding is a promise.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter III ───────────────────────────────────────── -->
+      <article class="page" data-ribbon="III">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">III</span>
+            <span class="mono">The layers</span>
+          </div>
+          <h3>Three layers, three seam strategies</h3>
+          <span class="kicker mono">Why there are no hairlines between the strips</span>
+          <div class="prose">
+            <p>
+              Behind the content sits a <em>color-matched paper base</em>,
+              overlapping generously — whatever peeks through a wedge gap is
+              indistinguishable from the page. The content overlaps 1.2px to
+              the right only: real continuation, covering the front seams.
+              And the curl light is no layer at all — it is a brightness
+              filter painted <em>into</em> the surfaces, so there is nothing
+              left to compose. Backface culling picks the visible side per
+              strip, exactly, on the compositor.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>The most elegant seam strategy turned out to be: don’t be a surface in the first place.</p>
+          </div>
+          <span class="margin-note hand">every layer earns its overlap.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter IV ────────────────────────────────────────── -->
+      <article class="page" data-ribbon="IV">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">IV</span>
+            <span class="mono">The physics</span>
+          </div>
+          <h3>It knows which way you are going</h3>
+          <span class="kicker mono">Direction-aware, with a soft swing-through</span>
+          <div class="prose">
+            <p>
+              Paper always bends <em>against the motion</em> — the free edge
+              trails behind. Scroll back and the page bows the other way.
+              Reverse mid-flight and the curl doesn’t snap: it eases through
+              flat to the opposite side, the way real paper springs when you
+              change your mind halfway through a page.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Try it here: wobble up and down while this page stands upright, and watch the bow swing through.</p>
+          </div>
+          <span class="margin-note hand">wobble me. i can take it.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter V ─────────────────────────────────────────── -->
+      <article class="page" data-ribbon="V">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">V</span>
+            <span class="mono">Your turn</span>
+          </div>
+          <h3>Make it yours</h3>
+          <span class="kicker mono">Everything is a knob or a copy-paste</span>
+          <div class="prose">
+            <p>
+              The knobs at the top of script.js: <em>SEGMENTS</em> (smoothness),
+              <em>CURL</em> (drama), <em>SHADING</em> (light), and
+              <em>SCROLL_PER_FLIP</em> (pace), and <em>PERSPECTIVE</em> (camera). 
+              Adding a page is adding one <em>&lt;article class="page"&gt;</em> — 
+              scroll length, ribbon and controls adapt on their own. 
+              Small screens and reduced-motion readers get the same book as 
+              a calm, static stack.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Fork it, bend it, break it — the spine will hold.</p>
+          </div>
+          <span class="margin-note hand">— C.F. × D.E.</span>
+        </div>
+      </article>
+
+    </div>
+
+    <div class="controls">
+      <button type="button" id="btn-skip-up" aria-label="Skip above the book">↑</button>
+      <button type="button" id="btn-prev" aria-label="Previous page">‹</button>
+      <span class="readout" id="readout">✳</span>
+      <button type="button" id="btn-next" aria-label="Next page">›</button>
+      <button type="button" id="btn-skip-down" aria-label="Skip below the book">↓</button>
+    </div>
+  </div>
+</div>
+
+<section class="outro">
+  <span class="mono" style="color:var(--accent-2);">Colophon</span>
+  <p style="max-width:52ch; color:var(--muted);">
+    Folded out of mathematics by
+    <a href="https://dimitrjegloff.ch" rel="author">Dimitrj Egloff</a>
+    together with Claude Fable (Anthropic).
+  </p>
+</section>
+
+<script src="script.js"></script>
+</body>
+</html>
