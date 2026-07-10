@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Page-Turn — a scroll-driven book with a genuine kinematic curl</title>
+<meta name="description" content="A library-free, scroll-driven page-turn animation with a real, gradually bending curl. Made by Claude Fable together with Dimitrj Egloff.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<style>
+
+/* ═════════════════════════════════════════════════════════════════
+   THE PAGE-TURNER — a scroll-driven book with a genuine kinematic curl
+   Styles. Colors and paper tones live in :root; behaviour knobs live
+   at the top of script.js.
+   ═════════════════════════════════════════════════════════════════ */
+
+:root{
+  --paper:    #f4f1e8;   /* page front, odd pages  */
+  --paper-2:  #ece8db;   /* page front, even pages */
+  --ink:      #16151d;   /* stage background, text */
+  --ink-2:    #1e1d27;
+  --muted:    #a5a2b4;
+  --accent:   #1f3aff;   /* cobalt — headings, marks   */
+  --accent-2: #7583ff;   /* cobalt for dark surfaces   */
+  --signal:   #e5432c;   /* note marker                */
+  --line:     rgba(244,241,232,0.16);
+
+  --font-display: "Jost", sans-serif;
+  --font-body:    "Instrument Sans", sans-serif;
+  --font-mono:    "IBM Plex Mono", monospace;
+  --font-hand:    "Caveat", cursive;
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  font-family:var(--font-body);
+  background:var(--ink);
+  color:var(--paper);
+  line-height:1.6;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{ background:var(--accent-2); color:var(--ink); }
+a{ color:inherit; }
+
+.mono{
+  font-family:var(--font-mono); font-size:0.72rem;
+  letter-spacing:0.12em; text-transform:uppercase;
+}
+.hand{ font-family:var(--font-hand); font-size:1.25rem; color:var(--accent); }
+
+/* ── Lead-in and lead-out around the book ───────────────────────── */
+.intro{
+  min-height:88vh;
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+  text-align:center; padding:0 6vw; gap:18px;
+}
+.intro h1{
+  font-family:var(--font-display); font-weight:300;
+  font-size:clamp(2.2rem, 6vw, 4.4rem);
+  letter-spacing:0.06em; text-transform:uppercase; line-height:1.05;
+}
+.intro p{ color:var(--muted); max-width:52ch; }
+.scroll-cue{ color:var(--muted); animation:pulse 2.4s ease-in-out infinite; }
+@keyframes pulse{ 0%,100%{opacity:.35} 50%{opacity:.95} }
+
+.outro{
+  min-height:60vh;
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+  text-align:center; padding:0 6vw; gap:14px;
+}
+.outro a{ color:var(--accent-2); }
+
+/* ── The stage: tall scroll runway with a sticky viewport ────────── */
+.flipbook-stage{ position:relative; /* height is set by script.js */ }
+.flipbook-pin{
+  position:sticky; top:0; height:100svh;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+
+/* ── The book ────────────────────────────────────────────────────── */
+.book{
+  position:relative;
+  width:min(820px, 90vw);
+  height:min(76vh, 680px);
+  /* No perspective PROPERTY here: for non-direct children the engine
+     must re-express the camera in their coordinate system — Gecko
+     provably gets this wrong (the page "flaps" downward). The camera
+     therefore lives as a perspective() FUNCTION inside every segment
+     transform, computed identically by all engines. */
+}
+.board{ /* cover board under the pages */
+  position:absolute; inset:-14px -14px -18px -20px;
+  background:linear-gradient(140deg, #23222e, #191821);
+  border:1px solid var(--line);
+  box-shadow:0 50px 100px -40px rgba(0,0,0,0.8);
+}
+.board::before{ /* spine shadow */
+  content:""; position:absolute; left:0; top:0; bottom:0; width:8px;
+  background:linear-gradient(90deg, rgba(0,0,0,0.5), transparent);
+}
+
+/* ── Pages ───────────────────────────────────────────────────────── */
+.page{
+  position:absolute; inset:0;
+  transform-origin:left center;
+  transform-style:preserve-3d;
+  will-change:transform;
+}
+.page-face{
+  position:absolute; inset:0;
+  background:var(--paper);
+  color:var(--ink);
+  padding:clamp(26px, 4vh, 44px) clamp(26px, 4vw, 48px);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.page:nth-child(even) .page-face{ background:var(--paper-2); }
+.page-face::before{ /* soft binding shadow along the spine */
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(90deg, rgba(22,21,29,0.12), transparent 6%);
+}
+
+/* ── The kinematic chain (built by script.js) ────────────────────── */
+.chain{ position:absolute; inset:0; transform-style:preserve-3d; }
+.segment{
+  position:absolute; top:0; bottom:0;
+  transform-style:preserve-3d;
+  transform-origin:left center;
+  will-change:transform;
+}
+.segment > .copy{
+  /* The content copy is a direct child of the 3D segment and clips
+     itself via clip-path. (A clipping wrapper would flatten it and
+     disable backface culling — the copy would show from both sides.) */
+  position:absolute; top:0; bottom:0;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+.paper-back{
+  /* Always-visible paper base a hair BEHIND the content plane.
+     Seen from the front it is covered by the content; once a segment
+     tips past vertical the copy is culled and the paper is already
+     there. Color-matched to the page front so nothing that peeks
+     through a seam is ever distinguishable from the page itself. */
+  position:absolute; top:0; bottom:0;
+  transform:translateZ(-0.22px);
+}
+
+/* ── Chapter ribbon (right-hand progress marks) ──────────────────── */
+.ribbon{
+  position:fixed; right:22px; top:50%; transform:translateY(-50%);
+  z-index:90; display:flex; flex-direction:column; gap:14px;
+  opacity:0; pointer-events:none; transition:opacity .4s;
+}
+.ribbon.active{ opacity:1; pointer-events:auto; }
+.ribbon span{
+  font-family:var(--font-mono); font-size:0.62rem; letter-spacing:0.08em;
+  color:var(--muted);
+  display:flex; align-items:center; gap:8px; justify-content:flex-end;
+  transition:color .25s;
+}
+.ribbon span::after{
+  content:""; width:14px; height:1.5px; background:currentColor;
+  transition:width .25s;
+}
+.ribbon span.current{ color:var(--accent-2); }
+.ribbon span.current::after{ width:26px; }
+
+/* ── Controls (page buttons under the book) ──────────────────────── */
+.controls{
+  position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+  z-index:70; display:flex; align-items:center; gap:8px;
+  background:rgba(22,21,29,0.72); backdrop-filter:blur(8px);
+  border:1px solid var(--line); padding:8px;
+}
+.controls button{
+  font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.08em;
+  text-transform:uppercase;
+  background:none; border:1px solid var(--line); color:var(--paper);
+  padding:8px 14px; cursor:pointer;
+  transition:background .2s, color .2s, border-color .2s;
+}
+.controls button:hover, .controls button:focus-visible{
+  background:var(--paper); color:var(--ink); border-color:var(--paper);
+}
+.controls .readout{
+  font-family:var(--font-mono); font-size:0.68rem; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--muted);
+  min-width:92px; text-align:center;
+}
+
+/* ── Demo page content styles ────────────────────────────────────── */
+.page-head{ display:flex; align-items:baseline; gap:18px; margin-bottom:12px; }
+.numeral{
+  font-family:var(--font-display); font-weight:400;
+  font-size:clamp(1.9rem, 4.5vh, 3rem); line-height:1;
+  color:var(--accent);
+}
+.page-head .mono{ color:#57544c; }
+.page-face h3{
+  font-family:var(--font-display); font-weight:500;
+  font-size:clamp(1.15rem, 2.8vh, 1.7rem); line-height:1.18;
+  margin-bottom:4px;
+}
+.page-face .kicker{ display:block; color:#57544c; margin-bottom:14px; font-size:0.68rem; }
+.page-face .prose{
+  max-width:64ch; color:#3d3a33;
+  font-size:clamp(0.85rem, 1.9vh, 0.98rem); line-height:1.55;
+}
+.page-face .prose em{
+  font-style:normal; font-weight:600; color:var(--ink);
+  box-shadow:inset 0 -0.45em rgba(31,58,255,0.14);
+}
+.note{
+  margin-top:auto; padding:12px 18px; max-width:60ch;
+  border-left:3px solid var(--signal);
+  background:rgba(229,67,44,0.05);
+}
+.note .mono{ color:var(--signal); display:block; margin-bottom:4px; font-size:0.64rem; }
+.note p{ font-size:clamp(0.8rem, 1.8vh, 0.92rem); color:var(--ink); }
+.margin-note{ margin-top:10px; display:inline-block; transform:rotate(-2deg); }
+
+/* Cover page */
+.cover-face{ align-items:center; justify-content:center; text-align:center; }
+.cover-frame{
+  border:1.5px solid var(--accent);
+  padding:clamp(28px, 6vh, 56px) clamp(24px, 5vw, 64px);
+  max-width:58ch;
+}
+.cover-frame .mono{ color:var(--accent); }
+.cover-title{
+  font-family:var(--font-display); font-weight:300;
+  font-size:clamp(1.7rem, 4.6vh, 2.9rem);
+  line-height:1.18; letter-spacing:0.06em; text-transform:uppercase;
+  margin:16px 0 12px; color:var(--ink);
+}
+.cover-sub{ color:#57544c; font-size:clamp(0.85rem, 1.9vh, 0.98rem); }
+.cover-face .margin-note{ margin-top:24px; }
+
+/* ── Fallbacks: small screens and reduced motion ─────────────────── */
+@media (max-width: 900px){
+  .ribbon{ display:none; }
+  .controls{ display:none; }
+  .flipbook-stage{ height:auto !important; }
+  .flipbook-pin{ position:static; height:auto; display:block; overflow:visible; }
+  .book{ width:auto; height:auto; perspective:none; margin:0 4vw; }
+  .board{ display:none; }
+  .page{ position:relative; inset:auto; transform:none !important; margin:0 0 28px; }
+  .page-face{ position:relative; min-height:0; }
+}
+@media (prefers-reduced-motion: reduce){
+  html{ scroll-behavior:auto; }
+  .scroll-cue{ animation:none; }
+  .ribbon, .controls{ display:none; }
+  .flipbook-stage{ height:auto !important; }
+  .flipbook-pin{ position:static; height:auto; display:block; overflow:visible; }
+  .book{ width:auto; height:auto; perspective:none; margin:0 4vw; }
+  .board{ display:none; }
+  .page{ position:relative; inset:auto; transform:none !important; margin:0 0 28px; }
+  .page-face{ position:relative; min-height:0; }
+}
+:focus-visible{ outline:2px solid var(--accent-2); outline-offset:3px; }
+
+
+</style>
+</head>
+<body>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     THE PAGE-TURNER
+     Made by Claude Fable and Dimitrj Egloff
+     https://dimitrjegloff.ch
+
+     Adding a page = adding one <article class="page"> inside .book.
+     Scroll length, ribbon and controls adapt automatically.
+     Behaviour knobs (segments, curl, shading, scroll length) live
+     at the top of script.js.
+     ═══════════════════════════════════════════════════════════════ -->
+
+<section class="intro">
+  <span class="mono" style="color:var(--accent-2);">CSS · vanilla JS · no libraries</span>
+  <h1>The Page-Turner</h1>
+  <p>
+    A scroll-driven book with a genuine, kinematic page curl —
+    the pages bend, the type bends with them, and the spine never moves.
+    Scroll to open it. The book explains itself.
+  </p>
+  <span class="scroll-cue mono">↓ scroll</span>
+</section>
+
+<nav class="ribbon" aria-label="Chapters"></nav>
+
+<div class="flipbook-stage">
+  <div class="flipbook-pin">
+    <div class="book">
+      <div class="board" aria-hidden="true"></div>
+
+      <!-- ── Cover ─────────────────────────────────────────────── -->
+      <article class="page" data-ribbon="✳">
+        <div class="page-face cover-face">
+          <div class="cover-frame">
+            <span class="mono">Claude Fable × Dimitrj Egloff — First edition</span>
+            <h2 class="cover-title">The Page-Turner</h2>
+            <p class="cover-sub">
+              Five short chapters on how to fold paper out of mathematics.
+            </p>
+          </div>
+          <span class="margin-note hand">→ keep scrolling, or use the buttons below</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter I ─────────────────────────────────────────── -->
+      <article class="page" data-ribbon="I">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">I</span>
+            <span class="mono">The idea</span>
+          </div>
+          <h3>A curl, not a rotation</h3>
+          <span class="kicker mono">Why this rarely exists</span>
+          <div class="prose">
+            <p>
+              CSS transforms are affine — a plane can turn, but it cannot
+              bend. So this page is not a plane: it is <em>strips
+              hinged into a kinematic chain</em>. Each hinge adds the same
+              small angle, and together they form a circular arc. The top
+              and bottom edges curve, and because every strip carries its
+              own clipped slice of the content, the type bends with the
+              paper.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Look at this page mid-turn: the edges are arcs, not lines — and this very sentence is following the bend.</p>
+          </div>
+          <span class="margin-note hand">a plane can’t bend. so don’t use one.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter II ────────────────────────────────────────── -->
+      <article class="page" data-ribbon="II">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">II</span>
+            <span class="mono">The anchor</span>
+          </div>
+          <h3>The spine never moves</h3>
+          <span class="kicker mono">Every transform is rooted at the binding</span>
+          <div class="prose">
+            <p>
+              The base rotation turns around the spine — and every strip's 
+              transform is anchored there too, so <em>the spine is the 
+                rotation axis itself</em> and stays put to the pixel. 
+                The hinges between the strips exist only as mathematics: 
+                computed positions along the arc, not nested elements.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Anything anchored on the axis cannot drift. Anything scaled by sin(π·g) must land flat. Correctness by geometry, not by choreography.</p>
+          </div>
+          <span class="margin-note hand">the binding is a promise.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter III ───────────────────────────────────────── -->
+      <article class="page" data-ribbon="III">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">III</span>
+            <span class="mono">The layers</span>
+          </div>
+          <h3>Three layers, three seam strategies</h3>
+          <span class="kicker mono">Why there are no hairlines between the strips</span>
+          <div class="prose">
+            <p>
+              Behind the content sits a <em>color-matched paper base</em>,
+              overlapping generously — whatever peeks through a wedge gap is
+              indistinguishable from the page. The content overlaps 1.2px to
+              the right only: real continuation, covering the front seams.
+              And the curl light is no layer at all — it is a brightness
+              filter painted <em>into</em> the surfaces, so there is nothing
+              left to compose. Backface culling picks the visible side per
+              strip, exactly, on the compositor.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>The most elegant seam strategy turned out to be: don’t be a surface in the first place.</p>
+          </div>
+          <span class="margin-note hand">every layer earns its overlap.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter IV ────────────────────────────────────────── -->
+      <article class="page" data-ribbon="IV">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">IV</span>
+            <span class="mono">The physics</span>
+          </div>
+          <h3>It knows which way you are going</h3>
+          <span class="kicker mono">Direction-aware, with a soft swing-through</span>
+          <div class="prose">
+            <p>
+              Paper always bends <em>against the motion</em> — the free edge
+              trails behind. Scroll back and the page bows the other way.
+              Reverse mid-flight and the curl doesn’t snap: it eases through
+              flat to the opposite side, the way real paper springs when you
+              change your mind halfway through a page.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Try it here: wobble up and down while this page stands upright, and watch the bow swing through.</p>
+          </div>
+          <span class="margin-note hand">wobble me. i can take it.</span>
+        </div>
+      </article>
+
+      <!-- ── Chapter V ─────────────────────────────────────────── -->
+      <article class="page" data-ribbon="V">
+        <div class="page-face">
+          <div class="page-head">
+            <span class="numeral">V</span>
+            <span class="mono">Your turn</span>
+          </div>
+          <h3>Make it yours</h3>
+          <span class="kicker mono">Everything is a knob or a copy-paste</span>
+          <div class="prose">
+            <p>
+              The knobs at the top of script.js: <em>SEGMENTS</em> (smoothness),
+              <em>CURL</em> (drama), <em>SHADING</em> (light), and
+              <em>SCROLL_PER_FLIP</em> (pace), and <em>PERSPECTIVE</em> (camera). 
+              Adding a page is adding one <em>&lt;article class="page"&gt;</em> — 
+              scroll length, ribbon and controls adapt on their own. 
+              Small screens and reduced-motion readers get the same book as 
+              a calm, static stack.
+            </p>
+          </div>
+          <div class="note">
+            <span class="mono">Note</span>
+            <p>Fork it, bend it, break it — the spine will hold.</p>
+          </div>
+          <span class="margin-note hand">— C.F. × D.E.</span>
+        </div>
+      </article>
+
+    </div>
+
+    <div class="controls">
+      <button type="button" id="btn-skip-up" aria-label="Skip above the book">↑</button>
+      <button type="button" id="btn-prev" aria-label="Previous page">‹</button>
+      <span class="readout" id="readout">✳</span>
+      <button type="button" id="btn-next" aria-label="Next page">›</button>
+      <button type="button" id="btn-skip-down" aria-label="Skip below the book">↓</button>
+    </div>
+  </div>
+</div>
+
+<section class="outro">
+  <span class="mono" style="color:var(--accent-2);">Colophon</span>
+  <p style="max-width:52ch; color:var(--muted);">
+    Folded out of mathematics by
+    <a href="https://dimitrjegloff.ch" rel="author">Dimitrj Egloff</a>
+    together with Claude Fable (Anthropic).
+  </p>
+</section>
+
+
+<script>
+
+/* ═══════════════════════════════════════════════════════════════════
+ *
+ *     
+ * 
+ *                ,..........   ..........,
+ *            ,..,'   THE    '.' genuine  ',..,
+ *           ,' ,'   PAGE     :    curl    ', ',
+ *          ,' ,'  TURNER     :  kinematic  ', ',
+ *         ,' ,'              :    chain     ', ',
+ *        ,' ,'............., : ,.............', ',
+ *       ,'  '............   '.'   ............'  ',
+ *        '''''''''''''''''';''';''''''''''''''''''
+ *                           ''' 
+ *   
+ *               Folded out of mathematics by
+ *  
+ *   C L A U D E   F A B L E  ×  D I M I T R J   E G L O F F
+ *                 https://dimitrjegloff.ch
+ * 
+ *              scroll-driven · library-free
+ * 
+ * 
+ *
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Configuration ─────────────────────────────────────────────────
+   Pages themselves are plain HTML: every <article class="page"> in
+   .book is one leaf of the book. Add or remove pages freely — the
+   scroll length, ribbon and controls adapt automatically.          */
+const CONFIG = {
+  SEGMENTS: 12,          // strips per page; more = smoother curl, costlier
+  CURL: 55,              // how far the free edge trails, in degrees
+  SHADING: 0,            // curl light, 0–0.15 (0 = matte, applied as a
+                         // brightness() filter — no overlay geometry,
+                         // therefore no seams by construction)
+  SCROLL_PER_FLIP: 70,   // scroll runway per page turn, in vh
+  PERSPECTIVE: 2400,     // camera distance in px
+  MOBILE_BREAKPOINT: 900 // below this width pages stack statically
+};
+
+(function(){
+  'use strict';
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const narrow = window.matchMedia('(max-width: ' + CONFIG.MOBILE_BREAKPOINT + 'px)');
+
+  const stage   = document.querySelector('.flipbook-stage');
+  const book    = document.querySelector('.book');
+  const pages   = Array.from(document.querySelectorAll('.book .page'));
+  const ribbon  = document.querySelector('.ribbon');
+  const readout = document.getElementById('readout');
+  if (!stage || !book || pages.length < 2) return;
+
+  const flips = pages.length - 1;              // the last page never flips
+  const labels = pages.map((p, i) => p.dataset.ribbon || String(i + 1));
+  const RAD = Math.PI / 180;
+
+  /* The scroll runway grows with the page count. */
+  stage.style.height = 'calc(100vh + ' + (flips * CONFIG.SCROLL_PER_FLIP) + 'vh)';
+
+  /* Ribbon marks, one per page. */
+  const marks = labels.map(label => {
+    const mark = document.createElement('span');
+    mark.textContent = label;
+    ribbon.appendChild(mark);
+    return mark;
+  });
+
+  /* ── Building the kinematic chain ────────────────────────────────
+     Each page is cut into SEGMENTS vertical strips. The strips are
+     SIBLINGS on a single 3D plane; the script computes each strip's
+     cumulative hinge position and angle itself (plain circular-arc
+     trigonometry). Mathematically identical to nesting the strips
+     inside one another — but it never asks the browser to resolve a
+     twelve-level preserve-3d chain, which some engines (Firefox)
+     flatten into a projected cascade. Every strip carries its own
+     clipped copy of the page content, so the type bends with the
+     paper. While a page rests, the intact original face is shown
+     instead of the strips: flawless native text rendering, and no
+     seams can exist where there are no slices.                     */
+  const chains = new Map();     // page → {parts, face, root, w}
+  const lastState = new Map();  // page → last rendered state key
+
+  function buildChains(){
+    const W = book.clientWidth, H = book.clientHeight;
+    const w = W / CONFIG.SEGMENTS;
+
+    for (const page of pages){
+      const face = page.querySelector('.page-face');
+      let chain = chains.get(page);
+
+      if (!chain){
+        const paperColor = getComputedStyle(face).backgroundColor;
+        const root = document.createElement('div');
+        root.className = 'chain';
+        const parts = [];
+
+        for (let k = 0; k < CONFIG.SEGMENTS; k++){
+          const seg = document.createElement('div');
+          seg.className = 'segment';
+
+          const paper = document.createElement('div');
+          paper.className = 'paper-back';
+          paper.style.background = paperColor;       // color-matched back
+
+          const copy = document.createElement('div');
+          copy.className = 'copy';
+          const clone = face.cloneNode(true);
+          clone.style.display = '';
+          copy.appendChild(clone);
+
+          seg.append(paper, copy);                   // paper behind the content
+          root.appendChild(seg);                     // siblings — no nesting
+          parts.push({ seg, copy, paper });
+        }
+        page.appendChild(root);
+        chain = { parts, face, root };
+        chains.set(page, chain);
+      }
+      chain.w = w;
+      chain.center = W / 2; // the camera aims at the book's center
+
+      /* Geometry — also refreshed on resize.
+         · paper overlaps generously on both sides: color-matched, it
+           fills the wedge gaps between curved segments invisibly
+         · content overlaps 1.2px to the right only: real continuation
+           covers the front seams; a left overlap would double-paint
+         · at the free edge both retreat 3px so the content alone
+           defines the silhouette — one crisp edge, never two       */
+      chain.parts.forEach((t, k) => {
+        const left    = k === 0 ? 0 : 0.8;
+        const right   = k === CONFIG.SEGMENTS - 1 ? 0 : 1.2;
+        const retreat = k === CONFIG.SEGMENTS - 1 ? 3 : 0;
+
+        t.seg.style.left  = '0px';                   // placed via transform
+        t.seg.style.width = w + 'px';
+
+        t.paper.style.left  = (-left) + 'px';
+        t.paper.style.width = (w + left + right - retreat) + 'px';
+
+        t.copy.style.left   = (-(k * w)) + 'px';
+        t.copy.style.width  = W + 'px';
+        t.copy.style.height = H + 'px';
+        const clip = 'inset(0 ' + (W - (k * w + w + right)).toFixed(2)
+                   + 'px 0 ' + (k * w).toFixed(2) + 'px)';
+        t.copy.style.clipPath = clip;
+        t.copy.style.webkitClipPath = clip;
+      });
+      lastState.delete(page);                        // force a redraw
+    }
+  }
+
+  function removeChains(){
+    for (const [page, chain] of chains){
+      chain.root.remove();
+      chain.face.style.display = '';
+      page.style.transform = '';
+    }
+    chains.clear(); lastState.clear();
+  }
+
+  /* ── Turn direction ──────────────────────────────────────────────
+     Real paper always bends AGAINST the motion — the free edge trails.
+     Turning back, the page bows the other way. If you reverse mid-
+     flight the direction eases through flat instead of snapping.   */
+  let direction = 1, directionTarget = 1, gliding = false;
+  function glideDirection(){
+    if (Math.abs(directionTarget - direction) < 0.02){
+      direction = directionTarget; gliding = false; update(); return;
+    }
+    direction += (directionTarget - direction) * 0.12;
+    update();
+    requestAnimationFrame(glideDirection);
+  }
+
+  /* ── The scroll-driven update ────────────────────────────────────── */
+  const smooth = t => t * t * (3 - 2 * t);
+  let lastP = 0, ticking = false;
+
+  function update(){
+    if (reducedMotion || narrow.matches){ ticking = false; return; }
+    const vh = window.innerHeight;
+    const rect = stage.getBoundingClientRect();
+    const runway = rect.height - vh;
+    const p = Math.min(1, Math.max(0, -rect.top / runway)) * flips;  // 0 … flips
+
+    if (Math.abs(p - lastP) > 0.0005){
+      directionTarget = p > lastP ? 1 : -1;
+      if (directionTarget !== direction && !gliding){
+        gliding = true;
+        requestAnimationFrame(glideDirection);
+      }
+    }
+
+    for (let i = 0; i < pages.length; i++){
+      const page = pages[i];
+      const f = Math.min(1, Math.max(0, p - i));     // 0 = resting, 1 = turned
+      const g = smooth(f);
+
+      const state = (g > 0 && g < 1)
+        ? g.toFixed(5) + '|' + direction.toFixed(3)
+        : String(g);
+      if (lastState.get(page) !== state){
+        lastState.set(page, state);
+        const bend = Math.sin(Math.PI * g);          // 0 → 1 → 0 across the turn
+
+        const chain = chains.get(page);
+        if (chain){
+          /* The base rotation is baked into EVERY segment: one explicit
+             transform per strip instead of a motion composed across
+             several 3D levels. Engines project multi-level 3D
+             differently (Gecko let the page flap downward) — with one
+             finished matrix per strip there is nothing left to compose.
+             All strips sit at left:0; their left edge IS the spine, so
+             the rotation axis stays put to the pixel. */
+          page.style.transform = '';
+          /* At rest the intact face takes over from the strips. */
+          const resting = g === 0;
+          chain.face.style.display = resting ? '' : 'none';
+          chain.root.style.display = resting ? 'none' : '';
+
+          if (!resting){
+            /* The arc, computed by hand: every hinge adds the same angle;
+            each strip sits at the end of the previous one. Every strip
+            gets ONE explicit transform, camera first — perspective() as
+            a function, conjugated by translateX(±center) to project about
+            the book's center (pixel-identical to the former ancestor
+            perspective in Blink, finally correct in Gecko) — then the
+            base rotation around the spine, then the strip's hinge
+            position and angle. */
+            const base =
+              'translateX(' + chain.center.toFixed(2) + 'px) ' +
+              'perspective(' + CONFIG.PERSPECTIVE + 'px) ' +
+              'translateX(' + (-chain.center).toFixed(2) + 'px) ' +
+              'rotateY(' + (-180 * g).toFixed(3) + 'deg) ';
+            const trail = CONFIG.CURL * bend * direction;
+            const step = trail / (CONFIG.SEGMENTS - 1);
+            const w = chain.w;
+            let x = 0, z = 0, phi = 0;
+
+            chain.parts.forEach((t, k) => {
+              t.seg.style.transform = base +
+                'translate3d(' + x.toFixed(2) + 'px,0,' + z.toFixed(2) + 'px) ' +
+                'rotateY(' + phi.toFixed(3) + 'deg)';
+
+              /* Curl light, painted into the surfaces themselves. */
+              const along = k / (CONFIG.SEGMENTS - 1);
+              const fwd = (direction + 1) / 2;
+              const dim = CONFIG.SHADING * bend * ((1 - along) * fwd + along * (1 - fwd));
+              const filter = dim > 0.001 ? 'brightness(' + (1 - dim).toFixed(3) + ')' : '';
+              t.copy.style.filter = filter;
+              t.paper.style.filter = filter;
+
+              /* Advance to the next hinge along this strip's plane. */
+              x += w * Math.cos(phi * RAD);
+              z -= w * Math.sin(phi * RAD);
+              phi += step;
+            });
+          }
+        }
+      }
+
+      /* Stacking: the turning page on top, resting pages in order,
+         turned pages beneath. */
+      if (f > 0 && f < 1)      page.style.zIndex = 60;
+      else if (f >= 1)         page.style.zIndex = 5 + i;
+      else                     page.style.zIndex = 40 - i;
+    }
+
+    /* Ribbon and readout. */
+    const current = Math.min(flips, Math.floor(p + 0.5));
+    marks.forEach((m, i) => m.classList.toggle('current', i === current));
+    if (readout) readout.textContent = labels[current];
+    lastP = p;
+    ticking = false;
+  }
+  function requestUpdate(){
+    if (!ticking){ ticking = true; requestAnimationFrame(update); }
+  }
+  window.addEventListener('scroll', requestUpdate, { passive:true });
+  window.addEventListener('resize', requestUpdate);
+
+  /* ── Chain lifecycle ─────────────────────────────────────────────── */
+  if (!reducedMotion && !narrow.matches) buildChains();
+  narrow.addEventListener('change', () => {
+    if (reducedMotion) return;
+    if (narrow.matches) removeChains(); else buildChains();
+  });
+  window.addEventListener('resize', () => {
+    if (!reducedMotion && !narrow.matches) buildChains();
+  });
+  update();
+
+  /* Ribbon appears only while the book is on stage. */
+  const visibility = new IntersectionObserver(entries => {
+    ribbon.classList.toggle('active', entries[0].isIntersecting);
+  }, { threshold: 0.02 });
+  visibility.observe(stage);
+
+  /* ── Controls: page buttons and skip in both directions ─────────── */
+  function goTo(k){
+    const top = window.scrollY + stage.getBoundingClientRect().top;
+    const step = (stage.offsetHeight - window.innerHeight) / flips;
+    window.scrollTo({ top: top + k * step + 2, behavior:'smooth' });
+  }
+  const on = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  };
+  on('btn-prev', () => goTo(Math.max(0, Math.ceil(lastP - 0.02) - 1)));
+  on('btn-next', () => goTo(Math.min(flips, Math.floor(lastP + 0.02) + 1)));
+  on('btn-skip-down', () => goTo(flips));
+  on('btn-skip-up', () => {
+    const top = window.scrollY + stage.getBoundingClientRect().top;
+    window.scrollTo({ top: top - window.innerHeight * 0.9, behavior:'smooth' });
+  });
+})();
+
+
+</script>
+</body>
+</html>
